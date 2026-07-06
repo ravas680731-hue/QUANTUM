@@ -78,6 +78,31 @@ npm start         # runs the MCP server on stdio (Ctrl-C to stop)
 
 ## Connect it to Claude
 
+### Claude Cowork / Claude Code — zero-config (`.mcp.json`)
+
+This repo ships a project-scoped [`.mcp.json`](.mcp.json). When you open the
+project in **Claude Cowork / Claude Code**, it detects the server and asks you
+to approve it; once approved the six `notebooklm_*` tools are available in that
+workspace. No manual config needed — just:
+
+```bash
+npm install          # once, so the server's dependencies exist
+npm run login        # once, on a machine with a display, to capture your Google session
+```
+
+Then open the folder in Cowork/Claude Code and approve the `notebooklm` server
+when prompted (or run `/mcp` to review it). To register it explicitly from the
+CLI instead:
+
+```bash
+claude mcp add notebooklm -- node /absolute/path/to/QUANTUM/src/server.js
+```
+
+> **Why local:** this server drives *your* logged-in browser, so it must run on
+> the same machine as your Google session and the persistent profile. That is
+> why it connects to Cowork/Claude Code as a local **stdio** server rather than
+> a hosted remote connector.
+
 ### Claude Desktop / Claude Code — `mcpServers` config
 
 ```json
