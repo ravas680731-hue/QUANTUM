@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "notebooklm": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["src/server.js"],
+      "env": {
+        "NOTEBOOKLM_HEADLESS": "1"
+      }
+    }
+  }
+}
