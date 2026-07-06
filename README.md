@@ -1,5 +1,7 @@
 # NotebookLM MCP
 
+[![CI](https://github.com/ravas680731-hue/QUANTUM/actions/workflows/ci.yml/badge.svg)](https://github.com/ravas680731-hue/QUANTUM/actions/workflows/ci.yml)
+
 An [MCP](https://modelcontextprotocol.io) server that connects Claude (or any
 MCP client) to **Google NotebookLM**.
 
