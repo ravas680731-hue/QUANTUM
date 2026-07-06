@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node src/server.js",
     "login": "node scripts/login.js",
+    "register": "node scripts/register-claude.js",
     "smoke": "node scripts/smoke.js"
   },
   "engines": {

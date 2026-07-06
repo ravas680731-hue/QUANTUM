@@ -39,17 +39,18 @@ echo "   Inicia sesión con TU cuenta de Google y espera a ver tus notebooks."
 echo "   Luego vuelve a esta terminal y pulsa Enter."
 node scripts/login.js
 
-# --- 4. Registrar el servidor en Claude ------------------------------------
+# --- 4. Registrar el servidor en la app de Claude --------------------------
 SERVER_PATH="$(pwd)/src/server.js"
+
+# 4a. Aplicación de escritorio de Claude (Claude Desktop): configura el archivo
+#     por ti, sin editar nada a mano.
+say "Configurando la aplicación de Claude…"
+node scripts/register-claude.js || err "No pude configurar la app de Claude automáticamente (revisa el mensaje de arriba)."
+
+# 4b. Si además usas Claude Code (comando 'claude'), lo registramos también.
 if command -v claude >/dev/null 2>&1; then
-  say "Registrando el servidor en Claude…"
-  # -s user => disponible en todos tus espacios de Cowork/Claude Code
-  claude mcp add notebooklm -s user -e NOTEBOOKLM_HEADLESS=1 -- node "$SERVER_PATH" \
-    && say "¡Listo! Abre Claude Cowork y verás las herramientas de NotebookLM."
-else
-  say "No encontré el comando 'claude' en este equipo."
-  echo "   El servidor igual queda listo. Al abrir esta carpeta en Cowork/Claude Code,"
-  echo "   te pedirá aprobar el servidor 'notebooklm' (definido en .mcp.json) y con eso queda conectado."
+  say "También detecté Claude Code; registrando ahí…"
+  claude mcp add notebooklm -s user -e NOTEBOOKLM_HEADLESS=1 -- node "$SERVER_PATH" || true
 fi
 
 say "Verificación rápida del servidor…"
