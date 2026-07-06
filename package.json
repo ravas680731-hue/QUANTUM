@@ -1,0 +1,22 @@
+{
+  "name": "notebooklm-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that connects Claude (or any MCP client) to Google NotebookLM by driving the web UI with Playwright.",
+  "type": "module",
+  "bin": {
+    "notebooklm-mcp": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "login": "node scripts/login.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "playwright": "^1.49.0"
+  },
+  "license": "MIT"
+}

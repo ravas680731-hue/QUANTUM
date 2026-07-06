@@ -1,0 +1,5 @@
+node_modules/
+# Persistent browser profile with Google auth cookies — NEVER commit.
+.notebooklm-mcp/
+*.log
+.env
