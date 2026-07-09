@@ -49,6 +49,32 @@ la EESS en iCloud (si `salida_en_carpeta_eess: true` y la carpeta existe) y en
 - Node ≥ 20 (para Playwright) y Python ≥ 3.11.
 - `pip install pymupdf` opcional, solo para previsualizar el PDF como imagen.
 
+## Automatización (opción B — al soltar el archivo, en tu Mac)
+
+Un watcher `launchd` genera el PDF **en cuanto sueltas** `GIN_07_2026.xlsx` o
+`SBH_07_2026.xlsx` (o el mes que sea) en la carpeta de la EESS.
+
+```bash
+bash tablero/watch/instalar_mac.sh      # instala dependencias + servicio launchd
+```
+
+Qué hace:
+- Vigila las carpetas de EESS que resuelven las `config/*.yaml` (vía `WatchPaths`).
+- Al cambiar el contenido, corre `watch/procesar_nuevos.py`, que toma el Excel
+  del **último mes**, y genera el PDF **solo si es más nuevo** que el existente
+  (idempotente, no entra en bucle al escribir el PDF).
+- Si el Excel llegó como marcador `.icloud` (en la nube, sin descargar), lo baja
+  con `brctl download` y espera a que se materialice.
+- Arranca al iniciar sesión y se reactiva solo. Registro en `watch/watcher.log`.
+
+```bash
+bash tablero/watch/desinstalar_mac.sh   # quitar el servicio
+```
+
+> Debe correr en la Mac donde está iCloud sincronizado. Añadir una EESS nueva:
+> crea su `config/<EESS>.yaml` y vuelve a correr el instalador para que vigile
+> también esa carpeta.
+
 ## Añadir una EESS nueva
 
 Crea `config/<EESS>.yaml` apuntando a su carpeta y acento de color. El rodado

@@ -336,7 +336,8 @@ def render_pdf(html, out_pdf):
     env = dict(os.environ)
     if exe:
         env["TABLERO_CHROMIUM_PATH"] = exe
-    r = subprocess.run(["node", os.path.join(HERE, "render_pdf.mjs"), tmp, out_pdf],
+    node = os.environ.get("TABLERO_NODE", "node")
+    r = subprocess.run([node, os.path.join(HERE, "render_pdf.mjs"), tmp, out_pdf],
                        cwd=HERE, env=env, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(f"Fallo el render con Chromium:\n{r.stderr}")
