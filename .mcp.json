@@ -7,6 +7,11 @@
       "env": {
         "NOTEBOOKLM_HEADLESS": "1"
       }
+    },
+    "icloud-drive": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["src/icloud-server.js"]
     }
   }
 }
