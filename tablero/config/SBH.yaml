@@ -1,0 +1,10 @@
+eess_nombre_legal: "SERVICIO BARR HER, S.A. DE C.V."
+eess_nombre_corto: "SBH"
+acento_primario: "#1F3A5F"
+acento_secundario: "#C9A227"
+icloud_base: "auto"
+carpeta_eess: "01-QUANTUM/Financieros EESS/SBH"
+patron_excel: "{EESS}_{MM}_{YYYY}.xlsx"
+periodo_corte: "auto"
+salida_en_carpeta_eess: true
+moneda: "MXN"
