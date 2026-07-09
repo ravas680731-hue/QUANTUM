@@ -128,6 +128,23 @@ def ingest(path: str) -> dict:
     gastos_cat["Otros gastos admin."] = max(0.0, total_gastos - sum(gastos_cat.values()))
     model["gastos_categorias"] = gastos_cat
 
+    # Detalle de gastos por concepto (subcuentas hoja 61.. y 62.. del EDO).
+    detalle = []
+    for r in range(1, edo.max_row + 1):
+        code = edo.cell(r, 1).value
+        if not isinstance(code, str):
+            continue
+        mm = re.match(r"\s*(6[12]\d{8})\s*-\s*(.+)", code)
+        if not mm:
+            continue
+        codigo = mm.group(1)
+        if codigo in ("6100000000", "6200000000"):   # padres, no hoja
+            continue
+        serie = _series(edo, r, mc)
+        detalle.append({"codigo": codigo, "nombre": mm.group(2).strip(),
+                        "serie": serie, "total": sum(serie)})
+    model["gastos_detalle"] = detalle
+
     # meses poblados = aquellos con ventas != 0
     model["n_meses"] = sum(1 for v in model["ventas"] if abs(v) > 1e-6)
 
@@ -142,6 +159,18 @@ def ingest(path: str) -> dict:
 
     # ---------------- BALANZA (AT, PT, CC, CxC, inv, CxP) ----------------------
     model["balanza"] = _ingest_balanza(wb)
+
+    # Inventario: cuenta "Almacén" del Balance General en ANALISIS FINANCIERO
+    # (más fiable que la balanza de comprobación, donde no viene desglosado).
+    inv = _ingest_inventario(wb)
+    if inv:
+        model["balanza"]["inventario"] = inv
+
+    # Vehículos del mes de corte: fila TOTALES de DESPACHOS (col despachos).
+    model["vehiculos_mes"] = _ingest_vehiculos(wb)
+
+    # Libro mayor de gastos: por concepto y por cuenta de contrapartida.
+    model["gastos_libro"] = _ingest_gastos_libro(wb)
 
     # razón social (de EDO RESULT, fila de título)
     tit = None
@@ -291,3 +320,98 @@ def _ingest_balanza(wb):
         "gastos": abs(groups["6"]),
         "CxC": cxc, "inventario": inv, "CxP": cxp, "PLP": plp,
     }
+
+
+def _ingest_inventario(wb):
+    """Cuenta 'Almacén' del Balance General en ANALISIS FINANCIERO, año en curso.
+
+    El bloque (Q..W) trae columnas 2024 | % | 2025 | % | 2026 | %; tomamos el
+    valor del año más reciente (la última columna de año del encabezado).
+    """
+    try:
+        ws = wb.sheet("analisis financiero", "análisis financiero")
+    except IngestaError:
+        return 0.0
+    # 1) localiza la celda etiqueta 'Almacén'
+    row_a = col_a = None
+    for r in range(1, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
+            if _norm(ws.cell(r, c).value) in ("almacen", "almacenes", "inventario", "inventarios"):
+                row_a, col_a = r, c
+                break
+        if row_a:
+            break
+    if not row_a:
+        return 0.0
+    # 2) columna del año más reciente en el encabezado A LA DERECHA de la etiqueta
+    year_col = None
+    for r in range(1, row_a):
+        years = [(c, int(ws.cell(r, c).value)) for c in range(col_a + 1, min(col_a + 12, ws.max_column) + 1)
+                 if isinstance(ws.cell(r, c).value, (int, float))
+                 and 2015 <= int(ws.cell(r, c).value) <= 2100]
+        if years:
+            year_col = max(years, key=lambda t: t[1])[0]
+            break
+    if not year_col:
+        return 0.0
+    v = ws.cell(row_a, year_col).value
+    return float(v) if isinstance(v, (int, float)) else 0.0
+
+
+def _ingest_gastos_libro(wb):
+    """Recorre la hoja de gastos (libro mayor) agrupando por concepto (bloque)
+    y por cuenta de contrapartida. Devuelve una lista de conceptos:
+    {concepto, total, n_movs, contrapartidas: [(nombre, monto, n), ...]}.
+    """
+    import datetime as _dt
+    try:
+        ws = wb.sheet("gastos ene", "gastos ")
+    except IngestaError:
+        return []
+    # encabezado: localizar columnas de comentario / contrapartida / monto
+    col_com, col_contra, col_monto = 2, 3, 4
+    conceptos = []
+    actual = None
+    for r in range(1, ws.max_row + 1):
+        a = ws.cell(r, 1).value
+        b = ws.cell(r, col_com).value
+        monto = ws.cell(r, col_monto).value
+        es_fecha = isinstance(a, _dt.datetime) or (isinstance(a, str) and re.match(r"20\d\d-\d\d-\d\d", a))
+        # cabecera de bloque: A no es fecha, B trae el nombre del concepto, sin monto
+        if not es_fecha and isinstance(b, str) and b.strip() and not isinstance(monto, (int, float)):
+            if _norm(b) in ("comentarios",):
+                continue
+            actual = {"concepto": b.strip(), "total": 0.0, "n_movs": 0, "_cp": {}}
+            conceptos.append(actual)
+            continue
+        if actual is not None and isinstance(monto, (int, float)):
+            actual["total"] += float(monto)
+            actual["n_movs"] += 1
+            cp = ws.cell(r, col_contra).value
+            cp = cp.strip() if isinstance(cp, str) and cp.strip() else "(sin contrapartida)"
+            e = actual["_cp"].get(cp, [0.0, 0])
+            e[0] += float(monto); e[1] += 1
+            actual["_cp"][cp] = e
+    # ordena contrapartidas por monto desc y limpia
+    out = []
+    for c in conceptos:
+        if c["n_movs"] == 0:
+            continue
+        cps = sorted(([k, v[0], v[1]] for k, v in c["_cp"].items()), key=lambda x: -x[1])
+        out.append({"concepto": c["concepto"], "total": c["total"],
+                    "n_movs": c["n_movs"], "contrapartidas": cps})
+    return out
+
+
+def _ingest_vehiculos(wb):
+    """Vehículos del mes de corte: fila TOTALES de DESPACHOS, columna despachos."""
+    try:
+        ws = wb.sheet("despachos")
+    except IngestaError:
+        return 0
+    for r in range(1, ws.max_row + 1):
+        if _norm(ws.cell(r, 1).value) in ("totales", "total"):
+            v = ws.cell(r, 3).value
+            if isinstance(v, (int, float)):
+                return int(v)
+    return 0

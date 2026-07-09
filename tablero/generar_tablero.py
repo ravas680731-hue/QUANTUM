@@ -114,6 +114,8 @@ table.kpi-t tr:nth-child(even) td{background:#FAFBFD}
 .secband td{background:var(--ac)!important;color:#fff;font-weight:700;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em}
 .cut{background:color-mix(in srgb,var(--ac) 12%,#fff)!important;font-weight:700}
 .lread{font-weight:700}
+table.kpi-t.anx th,table.kpi-t.anx td{font-size:8.7px;padding:2.6px 6px}
+table.kpi-t .totrow td{background:var(--ac)!important;color:#fff;font-weight:800}
 """
 
 
@@ -159,15 +161,20 @@ def build_html(model, k, cfg, anio, mes):
     # ---- P1 Volumen y mix
     lit = model["litros"]
     tickets = {p: model["despachos"].get(p, {}).get("ticket", 0) for p in ["Magna", "Premium", "Diesel"]}
+    veh = {p: model["despachos"].get(p, {}).get("despachos", 0) for p in ["Magna", "Premium", "Diesel"]}
+    veh_tot = model.get("vehiculos_mes", 0) or sum(veh.values())
     p1 = head("01 · Operación", "Volumen, vehículos y mix de combustibles",
-              f"Acumulado {periodo_txt} · litros y despachos", nm, corte_txt)
-    g = '<div class="grid" style="grid-template-columns:1.3fr 1.3fr 1fr;grid-template-rows:1fr 1fr">'
+              f"Acumulado {periodo_txt} · litros · {veh_tot:,} vehículos en {corte_txt}", nm, corte_txt)
+    g = '<div class="grid" style="grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr">'
     g += card("Volumen total de combustible", "Litros despachados por mes",
               C.bars(k["litros_tot_mes"][:n], ML, accent=ac, fmt="num", record=True))
     g += card("Litros por producto", "Apilado mensual (Magna·Premium·Diesel)",
               C.stacked({p: lit[p][:n] for p in lit}, ML))
     g += card("Mix de litros (acum.)", "Participación por producto",
               C.donut(k["mix"], colors=C.PROD, center=C.num_c(sum(k["mix"].values())), csub="litros"))
+    g += card("Vehículos atendidos por producto", f"Total {corte_txt}: {veh_tot:,} vehículos",
+              C.bars([veh["Magna"], veh["Premium"], veh["Diesel"]],
+                     ["Magna", "Premium", "Diesel"], accent=ac, fmt="num"))
     g += card("Ticket promedio por producto", f"Importe/despacho · {corte_txt}",
               C.bars([tickets["Magna"], tickets["Premium"], tickets["Diesel"]],
                      ["Magna", "Premium", "Diesel"], accent=ac, fmt="money"))
@@ -179,8 +186,8 @@ def build_html(model, k, cfg, anio, mes):
     top_prod = max(k["mix"], key=k["mix"].get)
     p1 += g + exec_band([
         ("up" if dvar >= 0 else "down", f"Volumen de {esc(corte_txt)}: <b>{C.num_c(litros_jun)} L</b> ({C.pct(dvar)} vs mes previo)."),
-        ("sq", f"<b>{esc(top_prod)}</b> concentra <b>{C.pct(k['mix'][top_prod]/sum(k['mix'].values()))}</b> del mix de litros acumulado."),
-        ("ci", f"Ticket promedio Magna <b>${tickets['Magna']:,.0f}</b> · Premium <b>${tickets['Premium']:,.0f}</b> · Diesel <b>${tickets['Diesel']:,.0f}</b>."),
+        ("ci", f"<b>{veh_tot:,}</b> vehículos atendidos en {esc(corte_txt)} (Magna {int(veh['Magna']):,} · Premium {int(veh['Premium']):,} · Diesel {int(veh['Diesel']):,})."),
+        ("sq", f"<b>{esc(top_prod)}</b> concentra <b>{C.pct(k['mix'][top_prod]/sum(k['mix'].values()))}</b> del mix de litros; ticket prom. Diesel <b>${tickets['Diesel']:,.0f}</b>."),
         ("up" if model['ut'][k['ut_record_i']] == max(model['ut'][:n]) else "sq",
          f"UT récord en <b>{MES_LARGO[k['ut_record_i']]}</b>: <b>${model['ut'][k['ut_record_i']]:,.0f}</b>."),
     ]) + pfoot(fuente, 1)
@@ -289,6 +296,69 @@ def _lectura(kind):
     return f'<span class="chip" style="color:{col};background:{bg}">{t}</span>'
 
 
+def build_anexo_html(model, k, cfg, anio, mes):
+    """Anexo de Gastos: conceptos registrados (× mes) + detalle del libro mayor."""
+    ac = cfg["acento_primario"]; nm = cfg["eess_nombre_legal"]; corto = cfg["eess_nombre_corto"]
+    n = k["n"]; ML = ingesta.MESES[:n]
+    periodo_txt = f"{MES_LARGO[0]}–{MES_LARGO[mes-1]} {anio}"
+    corte_txt = f"{MES_LARGO[mes-1]} {anio}"
+    fuente = f"Estado de resultados y libro de gastos {corto} · {corte_txt}"
+    total_g = k["gastos_acum"]; pct_ventas = total_g / k["ventas_acum"] if k["ventas_acum"] else 0
+    money = lambda v: f"${v:,.0f}"
+
+    # --- Página A: conceptos por mes (del estado de resultados, cuadra al total)
+    det = sorted(model["gastos_detalle"], key=lambda d: -d["total"])
+    rowsA = ['<table class="kpi-t anx"><tr><th>Concepto de gasto</th>'
+             + "".join(f'<th class="num">{m}</th>' for m in ML)
+             + '<th class="num">Total</th><th class="num">%</th></tr>']
+    for d in det:
+        celdas = "".join(f'<td class="num">{d["serie"][i]:,.0f}</td>' for i in range(n))
+        rowsA.append(f'<tr><td>{esc(d["nombre"].title())}</td>{celdas}'
+                     f'<td class="num cut">{money(d["total"])}</td>'
+                     f'<td class="num">{C.pct(d["total"]/total_g) if total_g else "—"}</td></tr>')
+    tot_mes = "".join(f'<td class="num">{sum(d["serie"][i] for d in det):,.0f}</td>' for i in range(n))
+    rowsA.append(f'<tr class="totrow"><td>TOTAL GASTOS</td>{tot_mes}'
+                 f'<td class="num">{money(total_g)}</td><td class="num">100%</td></tr>')
+    rowsA.append("</table>")
+    pA = (head("Anexo · Gastos", "Conceptos de gasto registrados",
+               f"Acumulado {periodo_txt} · gasto total {money(total_g)} ({C.pct(pct_ventas)} de ventas)", nm, corte_txt)
+          + '<div class="card" style="flex:1;padding:12px 14px"><h3>Gasto por concepto y mes (estado de resultados)</h3>'
+          + "".join(rowsA)
+          + '<div style="font-size:9px;color:#94A3B8;margin-top:6px">Los conceptos suman el 100% del gasto operativo del periodo. '
+          + 'El detalle de cada concepto (proveedor/contrapartida) se muestra en la página siguiente, tomado del libro de gastos.</div>'
+          + '</div>' + pfoot(fuente, 1, 2))
+
+    # --- Página B: detalle del libro mayor por concepto y contrapartida
+    lib = sorted(model.get("gastos_libro", []), key=lambda c: -c["total"])
+    suma_lib = sum(c["total"] for c in lib)
+    TOPN = 22
+    mostrados = lib[:TOPN]
+    cubierto = sum(c["total"] for c in mostrados) / suma_lib if suma_lib else 0
+    rowsB = ['<table class="kpi-t anx"><tr><th>Concepto (libro de gastos)</th>'
+             '<th class="num">Importe</th><th class="num">Movs.</th>'
+             '<th>Principales contrapartidas (proveedor / cuenta)</th></tr>']
+    for c in mostrados:
+        cps = " · ".join(f'{esc(k2.title())} <b>{v2:,.0f}</b>' for k2, v2, _ in c["contrapartidas"][:3])
+        rowsB.append(f'<tr><td>{esc(c["concepto"].title())}</td>'
+                     f'<td class="num cut">{money(c["total"])}</td>'
+                     f'<td class="num">{c["n_movs"]}</td><td style="font-size:9px">{cps}</td></tr>')
+    rowsB.append("</table>")
+    nota = (f'Se muestran los {len(mostrados)} conceptos principales del libro '
+            f'({C.pct(cubierto)} del gasto registrado, {len(lib)} conceptos en total). '
+            f'El libro de gastos suma {money(suma_lib)}; puede diferir levemente del estado de resultados '
+            f'por partidas contables (p. ej. depreciación) registradas de forma distinta.')
+    pB = (head("Anexo · Gastos", "Detalle por concepto y contrapartida",
+               f"Libro de gastos {periodo_txt} · para revisión de lo registrado", nm, corte_txt)
+          + '<div class="card" style="flex:1;padding:12px 14px"><h3>Detalle del libro de gastos</h3>'
+          + "".join(rowsB)
+          + f'<div style="font-size:9px;color:#94A3B8;margin-top:6px">{nota}</div>'
+          + '</div>' + pfoot(fuente, 2, 2))
+
+    body = "".join(f'<section class="page" style="--ac:{ac}">{p}</section>' for p in (pA, pB))
+    return (f"<!doctype html><html lang='es'><head><meta charset='utf-8'>"
+            f"<style>{_font_face()}{CSS}</style></head><body>{body}</body></html>")
+
+
 def kpi_table(k, ac):
     def money(v): return f"${v:,.0f}"
     def band(v, good, ok, invert=False):
@@ -384,13 +454,20 @@ def run_one(cfg_path, periodo=None, excel=None, outdir=None):
     out_pdf = os.path.join(outdir, fname)
     render_pdf(html, out_pdf)
 
-    placed = [out_pdf]
+    # Anexo de Gastos (PDF aparte)
+    anexo_html = build_anexo_html(model, k, cfg, anio, mes)
+    aname = f"{corto}_Anexo_Gastos_{anio}{mes:02d}_v01.pdf"
+    anexo_pdf = os.path.join(outdir, aname)
+    render_pdf(anexo_html, anexo_pdf)
+
+    placed = [out_pdf, anexo_pdf]
     if cfg.get("salida_en_carpeta_eess"):
         folder = os.path.join(icloud_base(cfg), cfg["carpeta_eess"])
         if os.path.isdir(folder):
             import shutil
-            dst = os.path.join(folder, fname)
-            shutil.copy(out_pdf, dst); placed.append(dst)
+            for src in (out_pdf, anexo_pdf):
+                dst = os.path.join(folder, os.path.basename(src))
+                shutil.copy(src, dst); placed.append(dst)
 
     print(f"[{corto}] periodo={anio}-{mes:02d}  excel={os.path.basename(xls)}")
     print(f"         ventas_acum={model and sum(model['ventas']):,.0f}  n_meses={k['n']}  fuente_font={verify_fonts(out_pdf)}")

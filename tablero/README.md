@@ -1,11 +1,14 @@
 # Generador de Tableros EESS
 
 Convierte el Excel financiero mensual de una Estación de Servicio (EESS) en un
-**PDF de 5 páginas** (Carta horizontal) para la Junta de Accionistas, según el
-prompt maestro [`prompts/PROMPT_Generador_Tableros_EESS_v04.md`](../prompts/PROMPT_Generador_Tableros_EESS_v04.md).
+**tablero PDF de 5 páginas** más un **Anexo de Gastos de 2 páginas** (Carta
+horizontal) para la Junta de Accionistas, según el prompt maestro
+[`prompts/PROMPT_Generador_Tableros_EESS_v05.md`](../prompts/PROMPT_Generador_Tableros_EESS_v05.md).
 
-Páginas: **1** Volumen y mix · **2** Resultados y estructura de gastos (6 paneles) ·
-**3** KPIs operativos (tabla) · **4** Rentabilidad DuPont · **5** Utilidad Total (UT).
+Tablero: **1** Volumen, vehículos y mix · **2** Resultados y estructura de gastos
+(6 paneles) · **3** KPIs operativos (tabla) · **4** Rentabilidad DuPont · **5**
+Utilidad Total (UT). Anexo de Gastos: **1** conceptos × mes (cuadra al 100 %) ·
+**2** detalle del libro mayor por concepto y contrapartida (proveedor/cuenta).
 
 ## Cómo funciona
 
@@ -37,9 +40,10 @@ python generar_tablero.py --all
 python generar_tablero.py --config config/SBH.yaml --excel /ruta/SBH_06_2026.xlsx
 ```
 
-El PDF se nombra `{EESS}_Dashboard_{YYYYMM}_v01.pdf` y se deja en la carpeta de
-la EESS en iCloud (si `salida_en_carpeta_eess: true` y la carpeta existe) y en
-`output/{EESS}/`.
+Se generan dos PDF por corrida: `{EESS}_Dashboard_{YYYYMM}_v01.pdf` (tablero) y
+`{EESS}_Anexo_Gastos_{YYYYMM}_v01.pdf` (anexo de gastos). Ambos se dejan en la
+carpeta de la EESS en iCloud (si `salida_en_carpeta_eess: true` y la carpeta
+existe) y en `output/{EESS}/`.
 
 ## Requisitos e importante
 
