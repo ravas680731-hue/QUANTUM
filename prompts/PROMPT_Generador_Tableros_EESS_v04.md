@@ -95,7 +95,7 @@ eess_nombre_corto: "GIN"
 acento_primario: "#1F3A5F"                      # ← acento propio de GIN
 acento_secundario: "#C9A227"
 icloud_base: "auto"                             # ver §6.3
-carpeta_eess: "01-QUANTUM/Financieros EESS/GIN" # relativa a icloud_base
+carpeta_eess: "001-QUANTUM/Financieros EESS/GIN" # relativa a icloud_base
 patron_excel: "{EESS}_{MM}_{YYYY}.xlsx"         # -> GIN_06_2026.xlsx, GIN_07_2026.xlsx...
 periodo_corte: "auto"                           # "auto" = último mes en la carpeta; o "2026-07"
 salida_en_carpeta_eess: true                    # deja el PDF junto al Excel
@@ -109,7 +109,7 @@ eess_nombre_corto: "SBH"
 acento_primario: "#1F3A5F"
 acento_secundario: "#C9A227"
 icloud_base: "auto"
-carpeta_eess: "01-QUANTUM/Financieros EESS/SBH"
+carpeta_eess: "001-QUANTUM/Financieros EESS/SBH"
 patron_excel: "{EESS}_{MM}_{YYYY}.xlsx"         # -> SBH_06_2026.xlsx, SBH_07_2026.xlsx...
 periodo_corte: "auto"
 salida_en_carpeta_eess: true

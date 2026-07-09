@@ -3,7 +3,7 @@ eess_nombre_corto: "GIN"
 acento_primario: "#1B5E4B"
 acento_secundario: "#C9A227"
 icloud_base: "auto"
-carpeta_eess: "01-QUANTUM/Financieros EESS/GIN"
+carpeta_eess: "001-QUANTUM/Financieros EESS/GIN"
 patron_excel: "{EESS}_{MM}_{YYYY}.xlsx"
 periodo_corte: "auto"
 salida_en_carpeta_eess: true
