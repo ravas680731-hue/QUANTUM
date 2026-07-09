@@ -209,7 +209,7 @@ Or from the CLI: `claude mcp add icloud-drive -- node /absolute/path/to/QUANTUM/
 A typical flow — validating a file exists:
 
 1. `icloud_status` → confirm iCloud Drive is reachable
-2. `icloud_check_file { "path": "01-QUANTUM/Financieros EESS/GIN/GIN_06_2026.xlsx" }`
+2. `icloud_check_file { "path": "001-QUANTUM/Financieros EESS/GIN/GIN_06_2026.xlsx" }`
 3. If it comes back `cloudOnly`: `icloud_download { "path": "…/GIN_06_2026.xlsx" }`, then read it.
 
 ### Configuration
