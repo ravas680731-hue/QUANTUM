@@ -69,6 +69,7 @@ cat > "$PLIST" <<PLISTEOF
   <array>
 $WATCHXML  </array>
   <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>300</integer>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
