@@ -99,7 +99,9 @@ def main():
         except Exception as e:
             log(f"[{os.path.basename(cfg_path)}] ERROR: {e!r}")
     if not hubo_trabajo:
-        log("sin cambios (todos los PDF al día).")
+        # Con sondeo cada 5 min no persistimos esto para no llenar el log;
+        # solo a consola (útil al correrlo a mano).
+        print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}  sin cambios (todos los PDF al día).")
 
 
 if __name__ == "__main__":
