@@ -127,7 +127,7 @@ Localiza hojas por sinónimo y filas **por etiqueta** (no por índice). Si falta
 - **P5 · UT acumulada:** 3 tarjetas KPI (UT acum., récord, promedio) + barras UT/mes con récord + dona de participación mensual. + Lectura Ejecutiva.
 
 ### 8.1 Anexo de Gastos (PDF aparte, 2 páginas)
-- **Pág. 1 — Conceptos registrados:** tabla Concepto × mes (subcuentas del estado de resultados) + Total + % ; fila **TOTAL** que cuadra al 100 % del gasto.
+- **Pág. 1 — Conceptos registrados:** tabla Concepto × mes (subcuentas del estado de resultados) + Total + **columna `% del total`** (peso de cada concepto sobre el 100 % del gasto); fila **TOTAL GASTOS** (cuadra al 100 %) y fila **`% del total mensual`** (peso de cada mes en el gasto acumulado). Más dos gráficas para análisis visual: **barras de Gasto total por mes** (con récord) y **dona de Composición por concepto** (% del total). Banda de Lectura con mes de mayor gasto, concepto de mayor peso y gasto/ventas.
 - **Pág. 2 — Detalle por concepto y contrapartida:** del libro mayor, cada concepto con importe, nº de movimientos y **principales contrapartidas (proveedor/cuenta)**. Muestra los conceptos principales (indica el % cubierto y el total de conceptos; no truncar en silencio). Nota: el libro puede diferir levemente del estado de resultados por partidas como depreciación.
 
 ## 9. PASOS DE EJECUCIÓN

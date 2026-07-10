@@ -116,6 +116,7 @@ table.kpi-t tr:nth-child(even) td{background:#FAFBFD}
 .lread{font-weight:700}
 table.kpi-t.anx th,table.kpi-t.anx td{font-size:8.7px;padding:2.6px 6px}
 table.kpi-t .totrow td{background:var(--ac)!important;color:#fff;font-weight:800}
+table.kpi-t .pctrow td{background:#EEF2F7!important;color:#475569;font-style:italic;font-weight:700}
 """
 
 
@@ -308,25 +309,55 @@ def build_anexo_html(model, k, cfg, anio, mes):
 
     # --- Página A: conceptos por mes (del estado de resultados, cuadra al total)
     det = sorted(model["gastos_detalle"], key=lambda d: -d["total"])
+    monthly_tot = [sum(d["serie"][i] for d in det) for i in range(n)]
     rowsA = ['<table class="kpi-t anx"><tr><th>Concepto de gasto</th>'
              + "".join(f'<th class="num">{m}</th>' for m in ML)
-             + '<th class="num">Total</th><th class="num">%</th></tr>']
+             + '<th class="num">Total</th><th class="num">% del total</th></tr>']
     for d in det:
         celdas = "".join(f'<td class="num">{d["serie"][i]:,.0f}</td>' for i in range(n))
         rowsA.append(f'<tr><td>{esc(d["nombre"].title())}</td>{celdas}'
                      f'<td class="num cut">{money(d["total"])}</td>'
                      f'<td class="num">{C.pct(d["total"]/total_g) if total_g else "—"}</td></tr>')
-    tot_mes = "".join(f'<td class="num">{sum(d["serie"][i] for d in det):,.0f}</td>' for i in range(n))
+    tot_mes = "".join(f'<td class="num">{monthly_tot[i]:,.0f}</td>' for i in range(n))
     rowsA.append(f'<tr class="totrow"><td>TOTAL GASTOS</td>{tot_mes}'
                  f'<td class="num">{money(total_g)}</td><td class="num">100%</td></tr>')
+    pct_mes = "".join(f'<td class="num">{C.pct(monthly_tot[i]/total_g) if total_g else "—"}</td>' for i in range(n))
+    rowsA.append(f'<tr class="pctrow"><td>% del total mensual</td>{pct_mes}'
+                 f'<td class="num">100%</td><td class="num">—</td></tr>')
     rowsA.append("</table>")
+
+    # composición por concepto para la dona (top 6 + Otros)
+    comp = {}
+    for d in det[:6]:
+        comp[d["nombre"].title()] = d["total"]
+    resto = sum(d["total"] for d in det[6:])
+    if resto > 0:
+        comp["Otros conceptos"] = resto
+    mes_pico = max(range(n), key=lambda i: monthly_tot[i])
+    concepto_top = det[0]
+
+    charts_row = ('<div class="grid" style="grid-template-columns:1.15fr 1fr;grid-template-rows:1fr;gap:7px">'
+        + card("Gasto total por mes", "Importe mensual (el % de cada mes se ve en la tabla)",
+               C.bars(monthly_tot, ML, accent=ac, fmt="money", record=True))
+        + card("Composición por concepto", "% del gasto total acumulado",
+               C.donut(comp, center=money(total_g), csub="gasto total"))
+        + '</div>')
+
     pA = (head("Anexo · Gastos", "Conceptos de gasto registrados",
                f"Acumulado {periodo_txt} · gasto total {money(total_g)} ({C.pct(pct_ventas)} de ventas)", nm, corte_txt)
-          + '<div class="card" style="flex:1;padding:12px 14px"><h3>Gasto por concepto y mes (estado de resultados)</h3>'
+          + '<div class="card" style="padding:9px 14px"><h3>Gasto por concepto y mes (estado de resultados)</h3>'
           + "".join(rowsA)
-          + '<div style="font-size:9px;color:#94A3B8;margin-top:6px">Los conceptos suman el 100% del gasto operativo del periodo. '
-          + 'El detalle de cada concepto (proveedor/contrapartida) se muestra en la página siguiente, tomado del libro de gastos.</div>'
-          + '</div>' + pfoot(fuente, 1, 2))
+          + '<div style="font-size:8.5px;color:#94A3B8;margin-top:4px">La columna <b>% del total</b> es el peso de cada concepto sobre el 100% del gasto; '
+          + 'la fila <b>% del total mensual</b> es el peso de cada mes. El detalle por proveedor/contrapartida está en la página 2.</div>'
+          + '</div>'
+          + charts_row
+          + exec_band([
+              ("sq", f"Mes de mayor gasto: <b>{MES_LARGO[mes_pico]}</b> con <b>{money(monthly_tot[mes_pico])}</b> ({C.pct(monthly_tot[mes_pico]/total_g)} del total)."),
+              ("ci", f"Concepto de mayor peso: <b>{esc(concepto_top['nombre'].title())}</b> ({C.pct(concepto_top['total']/total_g)} del gasto)."),
+              ("up", f"Gasto total acumulado <b>{money(total_g)}</b> = <b>{C.pct(pct_ventas)}</b> de las ventas del periodo."),
+              ("sq", f"Los {len(det)} conceptos del estado de resultados suman el <b>100%</b> del gasto operativo."),
+          ])
+          + pfoot(fuente, 1, 2))
 
     # --- Página B: detalle del libro mayor por concepto y contrapartida
     lib = sorted(model.get("gastos_libro", []), key=lambda c: -c["total"])
