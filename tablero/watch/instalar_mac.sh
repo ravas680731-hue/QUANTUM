@@ -81,10 +81,15 @@ $WATCHXML  </array>
 </plist>
 PLISTEOF
 
-# (re)cargar el servicio
+# (re)cargar el servicio (tolerante a códigos de salida para no cortar el flujo)
 launchctl unload "$PLIST" >/dev/null 2>&1 || true
-launchctl load "$PLIST"
-echo "✔ Watcher instalado y activo."
+launchctl load "$PLIST" >/dev/null 2>&1 || true
+if launchctl list 2>/dev/null | grep -q "$LABEL"; then
+  echo "✔ Watcher instalado y activo."
+else
+  echo "⚠ El servicio no aparece activo aún. Reintenta con:"
+  echo "    launchctl unload \"$PLIST\"; launchctl load \"$PLIST\""
+fi
 echo "  Suelta GIN_07_2026.xlsx o SBH_07_2026.xlsx en su carpeta y el PDF aparecerá al lado."
 echo "  Registro: $WATCH_DIR/watcher.log"
 echo "  Desinstalar: bash $WATCH_DIR/desinstalar_mac.sh"
