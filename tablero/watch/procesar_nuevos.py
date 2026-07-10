@@ -66,11 +66,16 @@ def excel_mas_reciente(cfg):
 
 
 def pdf_actualizado(cfg, anio, mes, xls):
-    """True si ya existe un PDF más nuevo que el Excel (nada que hacer)."""
+    """True si el tablero Y el anexo ya existen y son más nuevos que el Excel."""
     corto = cfg["eess_nombre_corto"]
     folder = os.path.join(G.icloud_base(cfg), cfg["carpeta_eess"])
-    pdf = os.path.join(folder, f"{corto}_Dashboard_{anio}{mes:02d}_v01.pdf")
-    return os.path.isfile(pdf) and os.path.getmtime(pdf) >= os.path.getmtime(xls)
+    xls_mt = os.path.getmtime(xls)
+    for name in (f"{corto}_Dashboard_{anio}{mes:02d}_v01.pdf",
+                 f"{corto}_Anexo_Gastos_{anio}{mes:02d}_v01.pdf"):
+        p = os.path.join(folder, name)
+        if not (os.path.isfile(p) and os.path.getmtime(p) >= xls_mt):
+            return False
+    return True
 
 
 def main():
