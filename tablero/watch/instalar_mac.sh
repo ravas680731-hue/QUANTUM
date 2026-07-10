@@ -27,7 +27,11 @@ echo "▶ Instalando dependencias (una sola vez)…"
 ( cd "$REPO" && npx playwright install chromium >/dev/null 2>&1 || true )
 
 # --- Carpetas a vigilar: se leen de config/*.yaml (resuelve la ruta iCloud) ---
-mapfile -t FOLDERS < <("$PYTHON" - "$ROOT" <<'PY'
+# (compatible con el bash 3.2 de macOS: sin `mapfile`)
+FOLDERS=()
+while IFS= read -r _line; do
+  [ -n "$_line" ] && FOLDERS+=("$_line")
+done < <("$PYTHON" - "$ROOT" <<'PY'
 import sys, os, glob, yaml
 root = sys.argv[1]; sys.path.insert(0, root)
 import generar_tablero as G
@@ -39,7 +43,7 @@ PY
 )
 
 WATCHXML=""
-for f in "${FOLDERS[@]}"; do
+for f in ${FOLDERS[@]+"${FOLDERS[@]}"}; do
   if [ -d "$f" ]; then
     echo "  vigilando: $f"
     WATCHXML+="    <string>$f</string>"$'\n'
