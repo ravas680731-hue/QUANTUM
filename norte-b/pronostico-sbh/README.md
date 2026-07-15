@@ -67,32 +67,73 @@ entrypoint se auto-configura).
 ```bash
 cd /Users/radamesvargasramirez/QUANTUM/norte-b/pronostico-sbh
 
-# Corrida normal (genera salidas + copia a Google Drive):
-./.venv/bin/python pronostico_semanal.py
+# Una estación (por permiso CNE) — genera salidas + copia a Drive:
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015
 
-# Sin copiar a Drive (pruebas):
-./.venv/bin/python pronostico_semanal.py --no-drive
+# TODAS las estaciones del registro (cada una aislada) + dashboard con selector:
+./.venv/bin/python pronostico_semanal.py --todas
 
-# Corrida + las 5 validaciones:
-./.venv/bin/python pronostico_semanal.py --validar
+# Sin copiar a Drive / con validaciones / solo validaciones:
+./.venv/bin/python pronostico_semanal.py --todas --no-drive
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015 --validar
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015 --solo-validar
 
-# Solo validaciones:
-./.venv/bin/python pronostico_semanal.py --solo-validar
+# Alta de una estación nueva (scaffold en calibración):
+./.venv/bin/python pronostico_semanal.py --alta PL/1234/EXP/ES/2020
 ```
+
+### Arquitectura multi-estación (identidad por permiso CNE)
+Cada estación vive en `estaciones/<PERMISO_NORM>/` (permiso con `/`→`-`) con sus
+propios datos, estado, `parametros.yaml` y modelos; sus salidas en
+`salidas/<PERMISO_NORM>/`. `registro_estaciones.yaml` (raíz) guarda la identidad
+oficial (permiso, razón social, dirección, coords, productos, política de riesgo,
+huso, estatus). **Aislamiento obligatorio:** ningún DataFrame de entrenamiento
+mezcla estaciones (assert en `pipeline`), y los CSV se leen SOLO de la carpeta de
+la estación — jamás por contenido.
+
+**Alta por permiso (`--alta`):** la ubicación se deriva del permiso, nunca se
+asume. Flujo con GATE de ficha (verificación CNE + vigencia L_CNE del SAT +
+geocodificación) confirmada por el operador ANTES de escribir el registro —
+prohibido inventar. La estación nace en **calibración** (genera pronóstico pero
+NO pedido) hasta pasar sus propias 5 validaciones. Costa del Golfo → Política de
+Nortes; interior/Pacífico → plantilla de riesgo local (desactivada hasta calibrar).
 
 Salidas en `salidas/AAAA-SS/`: `dashboard_semanal.html`, `pronostico_semana.csv`,
 `pedido_sugerido.md`; y `datos/estado/bitacora.csv` (append idempotente).
 
 ### Programación automática (launchd, no cron)
 En macOS el cron clásico falla con la máquina dormida. El LaunchAgent
-`com.quantum.pronostico.plist` corre `ejecutar_lunes.sh` los **lunes 07:00**.
-**Requiere tu aprobación antes de instalar** (ver §6). Para instalar:
+`com.quantum.pronostico.plist` corre `ejecutar_lunes.sh --todas` los
+**MARTES 10:00** (Weekday=2, Hour=10). Se movió de lunes 07:00 el 2026-07-15
+porque el control volumétrico entrega con **24 h de retraso** (los datos del
+domingo llegan el lunes). Para instalar:
 
 ```bash
 cp com.quantum.pronostico.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.quantum.pronostico.plist
+launchctl load -w ~/Library/LaunchAgents/com.quantum.pronostico.plist
 # quitar:  launchctl unload ~/Library/LaunchAgents/com.quantum.pronostico.plist
 ```
+
+### Rutina del operador (carga de datos)
+1. **LUNES antes de las 6:00 PM** — coloca los CSV de la semana **con datos hasta
+   el DOMINGO** en la carpeta de entrada de la estación (margen sobre la corrida
+   del martes 10:00). Nombre `PRODUCTO_AAAA.CSV`:
+   ```bash
+   # Ejemplo para SBH (permiso normalizado PL-6812-EXP-ES-2015):
+   cp ~/Descargas/MAGNA_2026.CSV \
+      "estaciones/PL-6812-EXP-ES-2015/datos/entrada/MAGNA_2026.CSV"
+   # (repetir para PREMIUM y DIESEL; los datos deben llegar hasta el domingo)
+   ```
+2. **MARTES 10:00** — el LaunchAgent corre solo. La semana operativa pronosticada
+   es **martes→lunes**; si los datos llegan hasta el domingo, el **lunes queda como
+   HUECO y se imputa** (mediana mismo día-de-semana) para las lags — sin fuga.
+3. El resultado (dashboard, pedido, csv) queda en `salidas/<PERMISO_NORM>/AAAA-SS/`
+   y se copia a Google Drive con la misma estructura.
+
+> El cambio de programación (lunes→martes) queda registrado con fecha en
+> `datos/estado/cambios_programacion.csv`, y cada corrida etiqueta su semana con
+> `inicio_operativo` en la bitácora, para no mezclar semanas con cortes distintos
+> en el comparativo modelo-vs-humano.
 
 ---
 
@@ -188,6 +229,12 @@ backtest; es una alerta operativa.
 6. **Sesgo positivo estructural** de Premium/Diésel por el objetivo p62: el pronóstico
    tiende a quedar *arriba* del real a propósito (colchón anti-faltante). Es una
    decisión de negocio, no un error a corregir.
+7. **Día de HUECO en la corrida del martes.** Si los datos llegan hasta el domingo,
+   el lunes queda como hueco: se imputa (mediana mismo-dow) para las lags. El último
+   día de la ventana (lunes siguiente) usa ese lunes imputado como su `lag7`, así que
+   es marginalmente menos preciso que los demás. El backtest mide la habilidad del
+   modelo a 7 días sin hueco; la corrida en vivo con hueco añade esta aproximación de
+   1 día. (Con datos hasta el lunes, no hay hueco.)
 
 ---
 

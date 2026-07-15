@@ -1,5 +1,7 @@
 #!/bin/bash
-# ejecutar_lunes.sh — corre el pronóstico semanal SBH (invocado por launchd los lunes 07:00).
+# ejecutar_lunes.sh — corre el pronóstico semanal (invocado por launchd).
+# NOTA: desde 2026-07-15 el LaunchAgent dispara los MARTES 10:00 (no lunes 07:00);
+# el nombre del archivo se conserva para no romper la referencia del plist.
 # Activa el venv propio, resuelve libomp (OpenMP) y ejecuta el pipeline con bitácora.
 set -uo pipefail
 
@@ -23,7 +25,10 @@ export DYLD_FALLBACK_LIBRARY_PATH="$VENV/libomp${DYLD_FALLBACK_LIBRARY_PATH:+:$D
     exit 1
   fi
   cd "$PROYECTO" || { echo "ERROR: no pude entrar a $PROYECTO"; exit 1; }
-  "$PY" pronostico_semanal.py --validar
+  # --todas: corre todas las estaciones del registro (cada una aislada).
+  # Nota: el agente dispara a las 07:00 hora local del Mac. Si en el futuro hay
+  # estaciones en otro huso horario, crear un LaunchAgent por huso.
+  "$PY" pronostico_semanal.py --todas --validar
   CODE=$?
   if [ $CODE -eq 0 ]; then
     echo "==== OK (corrida exitosa) ===="

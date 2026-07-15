@@ -6,6 +6,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from . import carga_datos as CD
 from . import features as F
 from . import modelo as M
 from . import reglas as R
@@ -23,8 +24,13 @@ def generar_pronostico(
     fecha_origen: pd.Timestamp,
     horizonte: int = 7,
     con_banda: bool = True,
+    fecha_inicio: pd.Timestamp | None = None,
 ) -> dict:
-    """Genera el pronóstico de `horizonte` días tras `fecha_origen` para un producto.
+    """Genera el pronóstico de `horizonte` días para un producto.
+
+    `fecha_inicio`: primer día de la ventana (por defecto origen+1). La corrida en
+    vivo pasa la fecha operativa (p.ej. el próximo martes); el backtest usa el
+    default para no alterar la validación.
 
     Devuelve dict con:
       - 'forecast': DataFrame [fecha, pronostico, p20, p80, base_modelo, regla, mult, deriva]
@@ -32,11 +38,15 @@ def generar_pronostico(
       - 'deriva': factor de deriva aplicado
       - 'origen': fecha_origen
     """
+    # AISLAMIENTO (03.2 multi): el DataFrame no puede mezclar estaciones.
+    CD.assert_una_estacion(df_producto, contexto=f"generar_pronostico({producto})")
+
     cfgp = params["config_producto"][producto]
     usa_lag364 = bool(cfgp["usa_lag364"])
     feat_cols = F.feature_cols_producto(usa_lag364)
 
-    frame = F.construir_frame(df_producto, producto, params, clima_df, fecha_origen, horizonte)
+    frame = F.construir_frame(df_producto, producto, params, clima_df, fecha_origen,
+                              horizonte, fecha_inicio=fecha_inicio)
 
     # --- Conjunto de entrenamiento (respeta régimen 03.2) ---
     # lag364 puede ser NaN en 2025 (solo existe desde el 2º año): NO lo exigimos,

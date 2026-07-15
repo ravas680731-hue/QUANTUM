@@ -69,11 +69,19 @@ def construir_frame(
     clima_df: pd.DataFrame,
     fecha_origen: pd.Timestamp,
     horizonte: int = 7,
+    fecha_inicio: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """Construye el frame diario de features + target hasta origen+horizonte.
+    """Construye el frame diario de features + target para la ventana de pronóstico.
 
     `df_producto` debe estar filtrado a fechas <= fecha_origen (no futuras).
     `clima_df` debe cubrir todo el rango (usar clima.cargar_clima).
+
+    `fecha_inicio`: primer día de la ventana de pronóstico. Por defecto
+    `fecha_origen + 1` (corrida clásica sin hueco). Cuando la corrida se hace con
+    retraso (p.ej. martes con datos hasta domingo), `fecha_inicio` puede ser
+    posterior a origen+1; los días de HUECO entre origen y fecha_inicio (p.ej. el
+    lunes) se tratan como faltantes y se IMPUTAN (mediana mismo-dow) para construir
+    las lags — así las lags NO asumen un corte fijo en lunes y no hay fuga.
     """
     cfgp = params["config_producto"][producto]
     fondo_muerto = cfgp["fondo_muerto"]
@@ -81,10 +89,14 @@ def construir_frame(
     pct = params["censura"]["percentil_ventas"]
     ventana_imp = params["censura"]["ventana_imputacion_dias"]
 
+    if fecha_inicio is None:
+        fecha_inicio = fecha_origen + pd.Timedelta(days=1)
+    fecha_inicio = pd.Timestamp(fecha_inicio)
+
     d = df_producto[df_producto["fecha"] <= fecha_origen].copy().set_index("fecha").sort_index()
 
     inicio = d.index.min()
-    fin = fecha_origen + pd.Timedelta(days=horizonte)
+    fin = fecha_inicio + pd.Timedelta(days=horizonte - 1)
     idx = pd.date_range(inicio, fin, freq="D")
 
     f = pd.DataFrame(index=idx)
@@ -93,7 +105,9 @@ def construir_frame(
     f["sdo_final"] = d["sdo_final"].reindex(idx)
     f["compras"] = d["compras"].reindex(idx)
 
-    f["en_horizonte"] = (idx > fecha_origen).astype(int)
+    # Ventana de pronóstico = [fecha_inicio, fin]. Los días > origen y < fecha_inicio
+    # son HUECO (no se predicen; se imputan como faltantes para las lags).
+    f["en_horizonte"] = (idx >= fecha_inicio).astype(int)
     f["sin_dato"] = (f["ventas"].isna() & (f["en_horizonte"] == 0)).astype(int)
 
     # --- Censura de desabasto (03.1) ---
@@ -102,10 +116,10 @@ def construir_frame(
     censurado = (f["ventas"] < p5) & (f["sdo_final"] < fondo_muerto) & f["ventas"].notna()
     f["censurado"] = censurado.astype(int)
 
-    # --- Serie imputada para construir lags ---
+    # --- Serie imputada para construir lags (incluye días de HUECO) ---
     invalida = (censurado | f["ventas"].isna()) & (f["en_horizonte"] == 0)
     f["ventas_imp"] = _imputar_dow(f["ventas"].fillna(np.nan), invalida, ventana_imp)
-    # días futuros: sin valor imputado (NaN) — no se usan como fuente de lag
+    # días de la ventana de pronóstico: sin valor imputado (NaN) — no son fuente de lag
     f.loc[f["en_horizonte"] == 1, "ventas_imp"] = np.nan
 
     vi = f["ventas_imp"]
@@ -154,7 +168,7 @@ def construir_frame(
     # contador reiniciado en cada recepción
     grupos = recepcion.cumsum()
     dias_sin = recepcion.groupby(grupos).cumcount()
-    f["dias_sin_recepcion"] = dias_sin
+    f["dias_sin_recepcion"] = dias_sin.astype(float)
     # cobertura al inicio del día: saldo útil de ayer / ma7 ventas de ayer
     sdo_util = (f["sdo_final"].shift(1) - fondo_muerto).clip(lower=0)
     ma7v = vi.rolling(7).mean().shift(1)
@@ -166,9 +180,10 @@ def construir_frame(
         dsr_origen = f.loc[fecha_origen, "dias_sin_recepcion"] if fecha_origen in f.index else 0
         hz = f["en_horizonte"] == 1
         f.loc[hz, "cobertura_dias"] = f.loc[hz, "cobertura_dias"].fillna(cob_origen)
-        # incrementa días sin recepción asumiendo que aún no llega pipa
-        offsets = np.arange(1, hz.sum() + 1)
-        f.loc[hz, "dias_sin_recepcion"] = (dsr_origen + offsets)
+        # incrementa días sin recepción por días REALES desde origen (respeta el hueco)
+        f.loc[hz, "dias_sin_recepcion"] = [
+            float(dsr_origen) + (dd - fecha_origen).days for dd in f.index[hz]
+        ]
 
     f["cobertura_dias"] = f["cobertura_dias"].fillna(0.0)
 
