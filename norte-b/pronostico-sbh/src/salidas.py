@@ -215,6 +215,11 @@ def preparar_datos_dashboard(hist: pd.DataFrame, params: dict) -> dict:
     cap = params["pedido"]["capacidad_pipa_litros"]
     dias_seg = params["nortes"]["alerta_roja_dias"]
 
+    # Auto-relleno de `real` en la bitácora con los datos ya llegados, y MAPE
+    # acumulado modelo vs humano para la sección técnica del dashboard (03.6.3).
+    actualizar_reales_bitacora(hist)
+    mape_hist = mape_bitacora()
+
     origen_global = pd.Timestamp(hist["fecha"].max())
     fechas_forecast = pd.date_range(origen_global + pd.Timedelta(days=1), periods=7)
     iso = fechas_forecast[0].isocalendar()
@@ -308,6 +313,7 @@ def preparar_datos_dashboard(hist: pd.DataFrame, params: dict) -> dict:
         "calendario_semana": calendario_semana,
         "temporada_nortes": temporada_nortes,
         "clima_faltante": any(prod_out[p]["clima_faltante"] for p in prod_out),
+        "mape_bitacora": mape_hist,
     }
 
 
@@ -418,6 +424,23 @@ def render_dashboard(datos: dict, params: dict) -> str:
                    for _, r in datos["productos"][p]["forecast"].iterrows()) + '</td></tr>'
         for p in ("MAGNA", "PREMIUM", "DIESEL"))
     xp = params["xgboost"]
+
+    # --- MAPE acumulado modelo vs humano (de bitacora.csv) ---
+    mb = datos.get("mape_bitacora", {})
+    if mb:
+        filas_mb = ""
+        for p in ("MAGNA", "PREMIUM", "DIESEL"):
+            if p in mb:
+                m = mb[p]
+                mh = f"{m['mape_humano']:.1f}% ({m['n_humano']})" if not math.isnan(m["mape_humano"]) else "— (sin decisión humana registrada)"
+                filas_mb += (f'<tr><td><b>{NOMBRE[p]}</b></td><td>{m["mape_modelo"]:.1f}% ({m["n"]} días)</td>'
+                             f'<td>{mh}</td></tr>')
+        bloque_mb = (f'<p class="nota">Margen de error acumulado con datos ya realizados (de la bitácora), '
+                     f'modelo vs decisión humana:</p>'
+                     f'<table><tr><th>Producto</th><th>Modelo</th><th>Humano (n)</th></tr>{filas_mb}</table>')
+    else:
+        bloque_mb = ('<p class="nota">Margen de error acumulado modelo vs humano (bitácora): '
+                     'aún sin días realizados esta semana; se irá llenando solo conforme lleguen los datos.</p>')
 
     return f'''<!doctype html>
 <html lang="es">
@@ -566,6 +589,7 @@ def render_dashboard(datos: dict, params: dict) -> str:
     </table>
     <p class="nota">Pronóstico por día con su rango probable (piso–techo):</p>
     <table>{band_rows}</table>
+    {bloque_mb}
     <p class="nota">Modelo: XGBoost cuantil α={xp['quantile_alpha']} (colchón de seguridad),
       {xp['n_estimators']} árboles, profundidad {xp['max_depth']}, lr {xp['learning_rate']}.
       Corrida basada en datos al {origen.strftime('%d/%m/%Y')}. Semana {datos['semana_id']}.</p>
@@ -661,6 +685,70 @@ def actualizar_bitacora(datos: dict, params: dict) -> Path:
         df = df_new[cols]
     df.to_csv(ruta, index=False)
     return ruta
+
+
+def actualizar_reales_bitacora(hist: pd.DataFrame) -> tuple[Path, int]:
+    """Rellena la columna `real` de la bitácora cuando ya llegó el dato de ese día.
+
+    Idempotente: solo toca filas con `real` vacío y cuya fecha ya está en el
+    histórico. Preserva `pronostico` y `decision_humana` (columna editable).
+    """
+    ruta = config.BITACORA_CSV
+    if not ruta.exists():
+        return ruta, 0
+    b = pd.read_csv(ruta, dtype=str)
+    if b.empty:
+        return ruta, 0
+
+    ventas = {(r.producto, r.fecha.strftime("%Y-%m-%d")): r.ventas
+              for r in hist.itertuples() if pd.notna(r.ventas)}
+
+    llenados = 0
+    nuevos = []
+    for _, row in b.iterrows():
+        cur = row.get("real", "")
+        vacio = pd.isna(cur) or str(cur).strip().lower() in ("", "nan")
+        if vacio:
+            v = ventas.get((row["producto"], row["fecha_pronosticada"]))
+            if v is not None:
+                nuevos.append(f"{float(v):.2f}")
+                llenados += 1
+            else:
+                nuevos.append("")
+        else:
+            nuevos.append(cur)
+    b["real"] = nuevos
+    b.to_csv(ruta, index=False)
+    return ruta, llenados
+
+
+def mape_bitacora() -> dict:
+    """MAPE acumulado modelo vs humano desde bitacora.csv (03.6.3).
+
+    Devuelve {producto: {mape_modelo, mape_humano, n}} usando solo filas con
+    `real` disponible. `mape_humano` requiere `decision_humana` numérica.
+    """
+    ruta = config.BITACORA_CSV
+    out = {}
+    if not ruta.exists():
+        return out
+    b = pd.read_csv(ruta)
+    if b.empty or "real" not in b.columns:
+        return out
+    b = b[pd.to_numeric(b["real"], errors="coerce").notna()].copy()
+    if b.empty:
+        return out
+    b["real"] = pd.to_numeric(b["real"], errors="coerce")
+    b["pronostico"] = pd.to_numeric(b["pronostico"], errors="coerce")
+    b["decision_humana"] = pd.to_numeric(b.get("decision_humana"), errors="coerce")
+    b = b[b["real"] > 0]
+    for prod, g in b.groupby("producto"):
+        mm = (abs(g["pronostico"] - g["real"]) / g["real"] * 100).mean()
+        gh = g[g["decision_humana"].notna()]
+        mh = (abs(gh["decision_humana"] - gh["real"]) / gh["real"] * 100).mean() if len(gh) else float("nan")
+        out[prod] = {"mape_modelo": float(mm), "mape_humano": float(mh),
+                     "n": int(len(g)), "n_humano": int(len(gh))}
+    return out
 
 
 def detectar_drive(params: dict) -> Path | None:
