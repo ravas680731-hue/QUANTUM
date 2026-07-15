@@ -1,0 +1,19 @@
+# Entorno virtual (incluye libomp y paquetes; se recrea con requirements.txt)
+.venv/
+requirements.lock.txt
+
+# Cachés de Python
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# ---- DATOS SENSIBLES DE SBH — NUNCA al repo (exposición mínima) ----
+datos/entrada/*.CSV
+datos/entrada/*.csv
+datos/entrada/clima.csv
+datos/estado/historico.parquet
+datos/estado/bitacora.csv
+
+# ---- Salidas generadas (contienen cifras sensibles) ----
+salidas/

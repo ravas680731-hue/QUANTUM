@@ -1,0 +1,11 @@
+# Dependencias del Pronóstico Semanal EESS SBH (instalar en .venv/ del proyecto).
+#   python3 -m venv .venv
+#   ./.venv/bin/pip install -r requirements.txt
+# En macOS sin Homebrew, scikit-learn aporta la libomp que XGBoost necesita;
+# se copia a .venv/libomp/ (ver config.ensure_omp).
+pandas
+numpy
+xgboost
+pyyaml
+pyarrow
+scikit-learn
