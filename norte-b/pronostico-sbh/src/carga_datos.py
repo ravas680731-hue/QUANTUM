@@ -66,8 +66,29 @@ def cargar_producto(producto: str, entrada: Path | None = None) -> pd.DataFrame:
     return df
 
 
-def construir_historico(productos: list[str], entrada: Path | None = None) -> pd.DataFrame:
-    """Histórico largo (una fila por fecha-producto) para todos los productos."""
+def construir_historico(productos: list[str], entrada: Path | None = None,
+                        estacion: str | None = None) -> pd.DataFrame:
+    """Histórico largo (una fila por fecha-producto) para todos los productos.
+
+    Los CSV se leen SOLO de la carpeta de la estación (config.ENTRADA por
+    defecto) — jamás se detecta la estación por contenido. Cada fila se etiqueta
+    con `estacion` (PERMISO_NORM) para el assert de aislamiento (03.2 multi).
+    """
+    entrada = entrada or config.ENTRADA
+    estacion = estacion or config.estacion_actual
     dfs = [cargar_producto(p, entrada) for p in productos]
     hist = pd.concat(dfs, ignore_index=True)
+    hist["estacion"] = estacion
     return hist.sort_values(["producto", "fecha"]).reset_index(drop=True)
+
+
+def assert_una_estacion(df: pd.DataFrame, contexto: str = "") -> None:
+    """AISLAMIENTO OBLIGATORIO: ningún DataFrame de entrenamiento/histórico puede
+    contener datos de más de una estación."""
+    if "estacion" in df.columns:
+        n = df["estacion"].nunique(dropna=False)
+        if n > 1:
+            raise AssertionError(
+                f"Aislamiento violado{(' en ' + contexto) if contexto else ''}: "
+                f"el DataFrame contiene {n} estaciones distintas "
+                f"({sorted(map(str, df['estacion'].unique()))}).")

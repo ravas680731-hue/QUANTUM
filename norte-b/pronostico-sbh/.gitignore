@@ -8,12 +8,18 @@ __pycache__/
 *.pyo
 .DS_Store
 
-# ---- DATOS SENSIBLES DE SBH — NUNCA al repo (exposición mínima) ----
+# ---- DATOS SENSIBLES POR ESTACIÓN — NUNCA al repo (exposición mínima) ----
+# Nueva estructura multi-estación: se ignora TODO datos/ de cada estación
+# (CSVs de ventas, historico, bitacora). Se versiona SOLO la config:
+# estaciones/<PERMISO_NORM>/parametros.yaml y registro_estaciones.yaml.
+estaciones/*/datos/
+
+# Estructura antigua mono-estación (originales pre-migración, a retirar)
 datos/entrada/*.CSV
 datos/entrada/*.csv
 datos/entrada/clima.csv
 datos/estado/historico.parquet
 datos/estado/bitacora.csv
 
-# ---- Salidas generadas (contienen cifras sensibles) ----
+# ---- Salidas generadas (contienen cifras sensibles), todas las estaciones ----
 salidas/

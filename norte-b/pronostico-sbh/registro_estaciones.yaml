@@ -1,0 +1,29 @@
+# ============================================================================
+# registro_estaciones.yaml — identidad OFICIAL de cada estación por permiso CNE.
+# La clave de cada entrada es el PERMISO_NORM (permiso con "/" -> "-").
+# NO se usan claves inventadas. Alta/cambios pasan por GATE (ver README §alta).
+# ============================================================================
+estaciones:
+  PL-6812-EXP-ES-2015:
+    permiso: "PL/6812/EXP/ES/2015"
+    permiso_norm: "PL-6812-EXP-ES-2015"
+    clave_corta: "SBH"
+    razon_social: "Servicio Barr Her, S.A. de C.V."
+    direccion: "Av. Dr. Rafael Cuervo S/N, Col. Playa Linda (entre calle Playa la Quebrada y calle Playa Casitas)"
+    cp: "91810"
+    municipio: "Veracruz"
+    estado: "Veracruz"
+    lat: 19.203          # APROXIMADA (zona CP 91810 Playa Linda); geocodificación precisa PENDIENTE
+    lon: -96.139         # APROXIMADA
+    coordenadas_precision: "aproximada_zona"
+    productos_autorizados: [MAGNA, PREMIUM, DIESEL]
+    fuente_clima: "SPC Veracruz (@spcver_met) / CONAGUA Golfo"   # Veracruz: sí aplica @spcver_met
+    politica_riesgo: "nortes"        # costa del Golfo -> Política de Nortes (oct-mar)
+    huso_horario: "America/Mexico_City"
+    fecha_alta: "2026-07-15"
+    fecha_ultima_verificacion_cne: "2026-07-15"   # parcial (web pública CNE); vigencia L_CNE del SAT POR CONFIRMAR
+    estatus: "activa"                # migrada del sistema mono-estación ya validado
+    notas: >
+      Migrada del sistema mono-estación SBH v1.0 (ya pasaba sus 5 validaciones).
+      Vigencia formal en L_CNE del SAT NO verificada en línea desde el entorno;
+      confirmar en el portal CNE/SAT. Coordenadas aproximadas de la zona.

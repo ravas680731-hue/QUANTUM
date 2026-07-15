@@ -6,6 +6,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from . import carga_datos as CD
 from . import features as F
 from . import modelo as M
 from . import reglas as R
@@ -32,6 +33,9 @@ def generar_pronostico(
       - 'deriva': factor de deriva aplicado
       - 'origen': fecha_origen
     """
+    # AISLAMIENTO (03.2 multi): el DataFrame no puede mezclar estaciones.
+    CD.assert_una_estacion(df_producto, contexto=f"generar_pronostico({producto})")
+
     cfgp = params["config_producto"][producto]
     usa_lag364 = bool(cfgp["usa_lag364"])
     feat_cols = F.feature_cols_producto(usa_lag364)

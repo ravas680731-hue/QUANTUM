@@ -654,6 +654,57 @@ def escribir_dashboard(datos: dict, params: dict, destino: Path) -> Path:
     return ruta
 
 
+def render_dashboard_multi(items: list[tuple[str, str]], registro: dict) -> str:
+    """Dashboard combinado con SELECTOR de estación (un HTML).
+
+    `items`: lista de (permiso_norm, html_completo_de_la_estacion). Cada estación
+    va embebida en un <iframe srcdoc> autocontenido; el selector alterna cuál se
+    ve y ajusta su altura. Es una vista local de conveniencia; el Drive sigue
+    recibiendo el dashboard por estación en salidas/<PERMISO_NORM>/.
+    """
+    reg = registro.get("estaciones", {})
+    def etiqueta(n):
+        m = reg.get(n, {})
+        return f'{m.get("clave_corta", n)} — {m.get("razon_social", "")}'.strip(" —")
+    opciones = "".join(f'<option value="{n}">{html.escape(etiqueta(n))}</option>' for n, _ in items)
+    frames = "".join(
+        f'<iframe class="estframe" data-est="{n}" srcdoc="{html.escape(h, quote=True)}" '
+        f'style="display:{"block" if i == 0 else "none"}"></iframe>'
+        for i, (n, h) in enumerate(items))
+    return f'''<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pronóstico semanal EESS — multi-estación</title>
+<style>
+  body {{ margin:0; font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif; background:{CREMA}; }}
+  .barra {{ position:sticky; top:0; z-index:5; background:{NAVY}; color:{CREMA};
+    padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
+  .barra b {{ font-family:Georgia,serif; color:{ORO}; }}
+  .barra select {{ font-size:1rem; padding:6px 10px; border-radius:8px; border:2px solid {ORO};
+    background:#fff; color:{NAVY}; font-weight:700; max-width:100%; }}
+  .estframe {{ width:100%; border:0; }}
+  @media (prefers-color-scheme:dark) {{ body {{ background:#14202f; }} }}
+</style></head><body>
+  <div class="barra"><b>QUANTUM · EESS</b>
+    <label>Estación:
+      <select id="sel" onchange="cambiar(this.value)">{opciones}</select>
+    </label>
+  </div>
+  {frames}
+  <script>
+    function ajustar(f){{ try{{ f.style.height = (f.contentWindow.document.documentElement.scrollHeight+20)+'px'; }}catch(e){{ f.style.height='1600px'; }} }}
+    function cambiar(n){{
+      document.querySelectorAll('.estframe').forEach(function(f){{
+        var on = f.getAttribute('data-est')===n; f.style.display = on?'block':'none';
+        if(on) ajustar(f);
+      }});
+    }}
+    document.querySelectorAll('.estframe').forEach(function(f){{ f.addEventListener('load',function(){{ ajustar(f); }}); }});
+    window.addEventListener('load',function(){{ var v=document.getElementById('sel').value; cambiar(v); }});
+  </script>
+</body></html>'''
+
+
 def actualizar_bitacora(datos: dict, params: dict) -> Path:
     """Append idempotente a bitacora.csv. Clave: (fecha_corrida, producto, fecha_pronosticada).
 
@@ -766,7 +817,9 @@ def copiar_a_drive(semana_dir: Path, params: dict) -> tuple[bool, str]:
     if destino_base is None:
         return False, "No se detectó Google Drive montado (se omite la copia)."
     try:
-        destino = destino_base / semana_dir.name
+        # Replica la estructura salidas/<PERMISO_NORM>/<AAAA-SS>/  (solo salidas)
+        norm = config.estacion_actual or ""
+        destino = destino_base / norm / semana_dir.name if norm else destino_base / semana_dir.name
         destino.mkdir(parents=True, exist_ok=True)
         for f in semana_dir.iterdir():
             if f.is_file():

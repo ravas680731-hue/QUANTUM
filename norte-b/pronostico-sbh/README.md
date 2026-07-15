@@ -67,18 +67,36 @@ entrypoint se auto-configura).
 ```bash
 cd /Users/radamesvargasramirez/QUANTUM/norte-b/pronostico-sbh
 
-# Corrida normal (genera salidas + copia a Google Drive):
-./.venv/bin/python pronostico_semanal.py
+# Una estación (por permiso CNE) — genera salidas + copia a Drive:
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015
 
-# Sin copiar a Drive (pruebas):
-./.venv/bin/python pronostico_semanal.py --no-drive
+# TODAS las estaciones del registro (cada una aislada) + dashboard con selector:
+./.venv/bin/python pronostico_semanal.py --todas
 
-# Corrida + las 5 validaciones:
-./.venv/bin/python pronostico_semanal.py --validar
+# Sin copiar a Drive / con validaciones / solo validaciones:
+./.venv/bin/python pronostico_semanal.py --todas --no-drive
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015 --validar
+./.venv/bin/python pronostico_semanal.py --estacion PL/6812/EXP/ES/2015 --solo-validar
 
-# Solo validaciones:
-./.venv/bin/python pronostico_semanal.py --solo-validar
+# Alta de una estación nueva (scaffold en calibración):
+./.venv/bin/python pronostico_semanal.py --alta PL/1234/EXP/ES/2020
 ```
+
+### Arquitectura multi-estación (identidad por permiso CNE)
+Cada estación vive en `estaciones/<PERMISO_NORM>/` (permiso con `/`→`-`) con sus
+propios datos, estado, `parametros.yaml` y modelos; sus salidas en
+`salidas/<PERMISO_NORM>/`. `registro_estaciones.yaml` (raíz) guarda la identidad
+oficial (permiso, razón social, dirección, coords, productos, política de riesgo,
+huso, estatus). **Aislamiento obligatorio:** ningún DataFrame de entrenamiento
+mezcla estaciones (assert en `pipeline`), y los CSV se leen SOLO de la carpeta de
+la estación — jamás por contenido.
+
+**Alta por permiso (`--alta`):** la ubicación se deriva del permiso, nunca se
+asume. Flujo con GATE de ficha (verificación CNE + vigencia L_CNE del SAT +
+geocodificación) confirmada por el operador ANTES de escribir el registro —
+prohibido inventar. La estación nace en **calibración** (genera pronóstico pero
+NO pedido) hasta pasar sus propias 5 validaciones. Costa del Golfo → Política de
+Nortes; interior/Pacífico → plantilla de riesgo local (desactivada hasta calibrar).
 
 Salidas en `salidas/AAAA-SS/`: `dashboard_semanal.html`, `pronostico_semana.csv`,
 `pedido_sugerido.md`; y `datos/estado/bitacora.csv` (append idempotente).
