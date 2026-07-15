@@ -156,14 +156,79 @@ All optional; set as env vars (see `.env.example`):
 - **One session at a time:** the persistent profile is single-writer; don't run
   the login script and the server against the same profile simultaneously.
 
+## iCloud Drive MCP
+
+A second, independent MCP server in this repo — [`src/icloud-server.js`](src/icloud-server.js) —
+exposes your **iCloud Drive** files to Claude.
+
+iCloud Drive has no public file API, so this server takes the reliable route:
+it reads the folder that the iCloud client already keeps **synced on disk**. No
+Apple ID, no password, no network — it just reads local files. Because of that
+it **must run on a machine that is signed in to iCloud** (your Mac, or a Windows
+PC with the iCloud client), not on a remote/cloud host.
+
+It understands iCloud's *"optimize storage"* eviction: when a file lives in the
+cloud but its local copy has been removed, iCloud leaves a hidden
+`.<name>.icloud` placeholder. The server reports such files as **`cloudOnly`**
+(they exist) instead of missing, and can pull them down on demand.
+
+### Tools
+
+| Tool | What it does |
+|------|--------------|
+| `icloud_status`     | Report the iCloud Drive folder in use and whether it's accessible. Call first. |
+| `icloud_list`       | List files/folders in a directory (relative to the iCloud Drive root). |
+| `icloud_check_file` | Check a specific file → `present` / `cloudOnly` / `missing`. |
+| `icloud_search`     | Recursively find files/folders by name (includes cloud-only files). |
+| `icloud_read_file`  | Read a file's contents (utf-8 text, or base64 for binaries like `.xlsx`). |
+| `icloud_download`   | Materialize a `cloudOnly` file locally (macOS `brctl`). |
+
+### Verify & connect
+
+```bash
+npm install
+npm run smoke:icloud   # end-to-end test with a simulated iCloud folder (no account needed)
+npm run start:icloud   # run the server on stdio (Ctrl-C to stop)
+```
+
+Register it with Claude Desktop / Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "icloud-drive": {
+      "command": "node",
+      "args": ["/absolute/path/to/QUANTUM/src/icloud-server.js"]
+    }
+  }
+}
+```
+
+Or from the CLI: `claude mcp add icloud-drive -- node /absolute/path/to/QUANTUM/src/icloud-server.js`.
+
+A typical flow — validating a file exists:
+
+1. `icloud_status` → confirm iCloud Drive is reachable
+2. `icloud_check_file { "path": "001-QUANTUM/Financieros EESS/GIN/GIN_06_2026.xlsx" }`
+3. If it comes back `cloudOnly`: `icloud_download { "path": "…/GIN_06_2026.xlsx" }`, then read it.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ICLOUD_DRIVE_PATH` | macOS: `~/Library/Mobile Documents/com~apple~CloudDocs` · Windows: `~/iCloudDrive` | Root folder the server reads |
+
 ## Project layout
 
 ```
 src/config.js        env-driven config + Chromium auto-detection
 src/notebooklm.js    Playwright automation client + SELECTORS
-src/server.js        MCP stdio server (tool registration + dispatch)
+src/server.js        NotebookLM MCP stdio server (tool registration + dispatch)
+src/icloud.js        local iCloud Drive reader (placeholder-aware, path-guarded)
+src/icloud-server.js iCloud Drive MCP stdio server
 scripts/login.js     one-time interactive Google sign-in
-scripts/smoke.js     end-to-end MCP handshake smoke test
+scripts/smoke.js     NotebookLM end-to-end MCP handshake smoke test
+scripts/icloud-smoke.js  iCloud MCP smoke test (simulated drive, no account)
 ```
 
 ## License

@@ -4,13 +4,16 @@
   "description": "MCP server that connects Claude (or any MCP client) to Google NotebookLM by driving the web UI with Playwright.",
   "type": "module",
   "bin": {
-    "notebooklm-mcp": "src/server.js"
+    "notebooklm-mcp": "src/server.js",
+    "icloud-drive-mcp": "src/icloud-server.js"
   },
   "scripts": {
     "start": "node src/server.js",
+    "start:icloud": "node src/icloud-server.js",
     "login": "node scripts/login.js",
     "register": "node scripts/register-claude.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "smoke:icloud": "node scripts/icloud-smoke.js"
   },
   "engines": {
     "node": ">=20"

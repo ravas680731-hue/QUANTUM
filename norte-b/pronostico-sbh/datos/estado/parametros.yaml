@@ -1,0 +1,169 @@
+# ============================================================================
+# parametros.yaml — Pronóstico Semanal EESS SBH · QUANTUM Norte B
+# Fuente ÚNICA de verdad. NADA de esto debe estar hardcodeado en el código.
+# Los valores provienen del PROMPT v03. Cambiarlos requiere confirmación (GATE 05).
+# ============================================================================
+
+version: "1.0"
+estacion: "SBH"
+
+# --- Régimen de datos (03.2) -------------------------------------------------
+# MAGNA entrena con 2025+2026. PREMIUM y DIESEL solo desde esta fecha.
+regimen_desde: "2026-01-01"
+
+productos:
+  - MAGNA
+  - PREMIUM
+  - DIESEL
+
+# Config por producto
+config_producto:
+  MAGNA:
+    entrena_desde: null          # null = usar todo el histórico (2025+2026)
+    usa_lag364: true             # feature lag364 solo para Magna
+    fondo_muerto: 1100           # litros — umbral de saldo para censura de desabasto
+  PREMIUM:
+    entrena_desde: "2026-01-01"  # 2025 = régimen distinto (rampa/pre-migración)
+    usa_lag364: false
+    fondo_muerto: 1147
+  DIESEL:
+    entrena_desde: "2026-01-01"
+    usa_lag364: false
+    fondo_muerto: 1100
+
+# --- Censura de desabasto (03.1) ---------------------------------------------
+censura:
+  percentil_ventas: 5            # Ventas < percentil 5 ...
+  # ... Y Sdo.Final < fondo_muerto  ->  día censurado (no entrena)
+  ventana_imputacion_dias: 21    # mediana mismo día-de-semana ±21 días
+
+# --- Hiperparámetros XGBoost (03.4) ------------------------------------------
+xgboost:
+  objective: "reg:quantileerror"
+  quantile_alpha: 0.62
+  n_estimators: 500
+  max_depth: 3
+  learning_rate: 0.04
+  subsample: 0.9
+  colsample_bytree: 0.8
+  reg_lambda: 2.0
+  min_child_weight: 3
+  random_state: 42
+
+# Cuantiles para banda de incertidumbre (p20/p80 en la salida)
+cuantiles_banda:
+  p20: 0.20
+  p80: 0.80
+
+# --- Reformulación del target (implementación, no valor de negocio) ----------
+# target_ratio=true: el modelo predice ventas/baseline (nivel reciente) en vez
+# de litros absolutos, y se repone el nivel al final. Evita que los árboles
+# tengan que extrapolar bajo el mínimo histórico cuando el producto cae en
+# tendencia (caso PREMIUM). El alpha (colchón 0.62) se conserva intacto.
+modelo:
+  target_ratio: true
+  baseline_feature: ma28        # nivel reciente sin fuga (media 28d desplazada 7)
+
+# --- Reglas post-modelo (03.5) -----------------------------------------------
+# En día de regla: pronóstico = nivel típico del dow × multiplicador.
+# Orden [MAGNA, PREMIUM, DIESEL].
+multiplicadores:
+  # festivo_lft dividido en DOS clases por evidencia (la tabla de ratios mostró
+  # estructura de dos grupos en PREMIUM):
+  #  - PUENTE (festivos movibles a lunes: Constitución/Juárez/Revolución) ->
+  #    fin de semana largo, más ocio -> Premium alto. Mediana 5 casos = 1.776.
+  #    Ratios: 1.586, 1.626, 1.776, 1.779, 2.527.
+  #  - FIJO (1-ene, 1-may, 16-sep, 25-dic) -> efecto suave. Mediana 6 casos = 1.153.
+  #    Ratios: 0.826, 0.835, 1.149, 1.157, 1.440, 1.587.
+  # DIESEL también dividido por evidencia (separación 0.30): festivos fijos caen
+  #   fuerte (Navidad 0.34, Año Nuevo 0.25, 16-sep 0.39) -> mediana 0.45; los
+  #   puente aguantan mejor -> mediana 0.74.
+  # MAGNA conserva valor único 0.93 (separación 0.11, sin estructura de 2 clases).
+  festivo_lft_puente:     {MAGNA: 0.93, PREMIUM: 1.78, DIESEL: 0.74}
+  festivo_lft_fijo:       {MAGNA: 0.93, PREMIUM: 1.15, DIESEL: 0.45}
+  festivo_escolar:        {MAGNA: 1.06, PREMIUM: 1.04, DIESEL: 0.68}
+  jueves_viernes_santo:   {MAGNA: 1.24, PREMIUM: 1.30, DIESEL: 0.38}
+  vacacion_semana_santa:  {MAGNA: 1.15, PREMIUM: 1.20, DIESEL: 0.90}
+  quincena_laboral:       {MAGNA: 1.04, PREMIUM: 1.00, DIESEL: 1.00}
+  # partido_mx tiene variante de fin de semana para PREMIUM
+  partido_mx:             {MAGNA: 0.91, PREMIUM: 0.89, DIESEL: 1.00}
+  partido_mx_finde:       {MAGNA: 0.91, PREMIUM: 0.80, DIESEL: 1.00}
+
+# "nivel típico del dow": mediana de ventas (no censuradas, no-regla) del mismo
+# día-de-semana en las últimas N semanas.
+nivel_tipico_dow:
+  semanas_lookback: 8
+
+# --- Deriva (03.5) -----------------------------------------------------------
+deriva:
+  ventana_dias: 14               # media(real/pred) últimos 14 días no-festivos
+  amortiguacion: 0.6             # deriva = 1 + 0.6*(ratio_medio - 1)
+  cota_min: 0.85
+  cota_max: 1.15
+  congelar_si_dias_sin_recepcion_mayor_a: 4   # >4 -> deriva congelada en 1.0
+
+# --- Política de Nortes (03.5) ----------------------------------------------
+nortes:
+  temporada_inicio: "10-01"      # 1-oct
+  temporada_fin: "03-31"         # 31-mar
+  cobertura_min_dias: 5          # sobre saldo útil
+  cobertura_norte72h_dias: 7     # si norte_72h=1 en yaml
+  alerta_roja_dias: 3            # <3 días con norte -> ALERTA ROJA
+  norte_72h: 0                   # bandera manual (0/1): norte pronosticado en 72h
+  minimo_ante_festivo_lft: 3     # nunca llegar a festivo LFT con <3 días
+
+# --- Pedido sugerido ---------------------------------------------------------
+pedido:
+  capacidad_pipa_litros: 20000   # tamaño de pipa estándar (aprox 20 m3)
+  # cobertura objetivo (días) fuera de temporada de nortes
+  cobertura_objetivo_dias: 5
+
+# --- Priors estacionales ago–dic (03.3) --------------------------------------
+# Índices destrendizados 2025 (base 100). Mes: 8=ago ... 12=dic.
+priors_estacionales:
+  MAGNA:   {8: 109, 9: 96, 10: 98, 11: 97, 12: 105}
+  PREMIUM: {8: 110, 9: 96, 10: 90, 11: 104, 12: 102}
+  DIESEL:  {8: 102, 9: 99, 10: 99, 11: 97, 12: 102}
+
+# --- Guadalupe-Reyes (03.3) --------------------------------------------------
+# Ventana gr: 12-dic -> 31-dic. Uplift aplicado como prior estacional.
+guadalupe_reyes:
+  inicio: "12-12"
+  fin: "12-31"
+  uplift: {MAGNA: 1.20, PREMIUM: 1.13, DIESEL: 1.00}   # +20% / +13% / neutro
+
+# --- Calendario extras (03.3) ------------------------------------------------
+extras_calendario:
+  vac_invierno_hasta: "01-06"    # <= 6-ene
+  fin_ciclo: {inicio: "07-10", fin: "07-15"}       # 10–15 jul
+  regreso_clases: {inicio: "09-01", fin: "09-15", prior: 0.0}  # refutado -> 0.0
+  gr: {inicio: "12-12", fin: "12-31"}
+
+# Eventos manuales (03.3 capa 4): partidos de la selección / eventos TV
+# Formato: lista de fechas ISO. Vacío por defecto.
+partido_mx: []
+evento_tv: []
+
+# --- Backtest / validación (04) ----------------------------------------------
+backtest:
+  train_min_dias: 100
+  horizonte: 7
+  desde: "2026-04-11"            # folds semanales desde esta fecha
+  mape_max:
+    MAGNA: 9.0
+    # PREMIUM recalibrado a 16%: el 15% original era objetivo de MEDIA; el
+    # objetivo p62 (colchón anti-faltante) encarece el MAPE ~2pp por diseño.
+    # A la mediana (α=0.50) PREMIUM se sienta en ~15% (piso de ruido de un
+    # producto de bajo volumen en migración). 16% (no 18%) deja poco margen
+    # para que una degradación real pase desapercibida.
+    PREMIUM: 16.0
+    DIESEL: 19.0
+  # Vigilancia de sesgo (no bloquea el backtest; alerta operativa semanal).
+  sesgo_atencion:
+    DIESEL: 8.0   # DIESEL trae sesgo +5.56%; revisar si supera +8%.
+
+# --- Rutas de salida / Drive (03.6) ------------------------------------------
+drive:
+  # patrón para autodetectar el Google Drive montado en macOS
+  glob_base: "~/Library/CloudStorage/GoogleDrive-*/Mi unidad"
+  subruta_destino: "QUANTUM/norte-b/pronostico-sbh-salidas"

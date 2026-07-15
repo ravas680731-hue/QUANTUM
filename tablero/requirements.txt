@@ -1,0 +1,5 @@
+openpyxl>=3.1
+pandas>=2.0
+PyYAML>=6.0
+# Render a PDF con Chromium vía Playwright (Node). Alternativa Python:
+# playwright>=1.49   # si se prefiere driver de Python en vez del helper .mjs
