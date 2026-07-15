@@ -1,5 +1,7 @@
 #!/bin/bash
-# ejecutar_lunes.sh — corre el pronóstico semanal SBH (invocado por launchd los lunes 07:00).
+# ejecutar_lunes.sh — corre el pronóstico semanal (invocado por launchd).
+# NOTA: desde 2026-07-15 el LaunchAgent dispara los MARTES 10:00 (no lunes 07:00);
+# el nombre del archivo se conserva para no romper la referencia del plist.
 # Activa el venv propio, resuelve libomp (OpenMP) y ejecuta el pipeline con bitácora.
 set -uo pipefail
 

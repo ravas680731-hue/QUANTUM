@@ -221,7 +221,10 @@ def preparar_datos_dashboard(hist: pd.DataFrame, params: dict) -> dict:
     mape_hist = mape_bitacora()
 
     origen_global = pd.Timestamp(hist["fecha"].max())
-    fechas_forecast = pd.date_range(origen_global + pd.Timedelta(days=1), periods=7)
+    # Ventana operativa: primer día según la programación (p.ej. martes con datos
+    # hasta domingo). El HUECO (lunes) se imputa en features (sin fuga).
+    fecha_inicio_op = config.fecha_inicio_operativo(origen_global, params)
+    fechas_forecast = pd.date_range(fecha_inicio_op, periods=7)
     iso = fechas_forecast[0].isocalendar()
     semana_id = f"{iso.year}-{int(iso.week):02d}"
 
@@ -229,14 +232,16 @@ def preparar_datos_dashboard(hist: pd.DataFrame, params: dict) -> dict:
     for prod in params["productos"]:
         dfp = hist[hist["producto"] == prod]
         origen = pd.Timestamp(dfp["fecha"].max())
+        fi = config.fecha_inicio_operativo(origen, params)
         fm = params["config_producto"][prod]["fondo_muerto"]
         s = dfp.set_index("fecha")["sdo_final"]
         sdo = float(s.loc[origen])
         util = sdo - fm
         cap_tanque = float(s.max()) * 1.05
 
-        clima_df, clima_faltante = CL.cargar_clima(pd.date_range(dfp["fecha"].min(), origen + pd.Timedelta(days=7)))
-        res = P.generar_pronostico(dfp, prod, params, clima_df, origen, con_banda=True)
+        clima_df, clima_faltante = CL.cargar_clima(
+            pd.date_range(dfp["fecha"].min(), fi + pd.Timedelta(days=7)))
+        res = P.generar_pronostico(dfp, prod, params, clima_df, origen, con_banda=True, fecha_inicio=fi)
         fc = res["forecast"]
         md = float(fc["pronostico"].mean())
         cobertura = util / md if md else 0.0
@@ -713,6 +718,9 @@ def actualizar_bitacora(datos: dict, params: dict) -> Path:
     """
     ruta = config.BITACORA_CSV
     corrida = datos["origen"].strftime("%Y-%m-%d")
+    # Etiqueta de programación: día de inicio operativo de esta semana. Evita
+    # mezclar semanas con cortes de datos distintos en el comparativo (04.item4).
+    inicio_op = DIAS_LARGO[datos["fechas"][0].weekday()]
     nuevas = []
     for prod in datos["productos"]:
         for _, r in datos["productos"][prod]["forecast"].iterrows():
@@ -720,9 +728,11 @@ def actualizar_bitacora(datos: dict, params: dict) -> Path:
                 "fecha_corrida": corrida, "producto": prod,
                 "fecha_pronosticada": r["fecha"].strftime("%Y-%m-%d"),
                 "pronostico": r["pronostico"], "real": "", "decision_humana": "",
+                "inicio_operativo": inicio_op,
             })
     df_new = pd.DataFrame(nuevas)
-    cols = ["fecha_corrida", "producto", "fecha_pronosticada", "pronostico", "real", "decision_humana"]
+    cols = ["fecha_corrida", "producto", "fecha_pronosticada", "pronostico", "real",
+            "decision_humana", "inicio_operativo"]
     if ruta.exists():
         df_old = pd.read_csv(ruta, dtype=str)
         for c in cols:
@@ -802,6 +812,27 @@ def mape_bitacora() -> dict:
     return out
 
 
+def registrar_programacion(params: dict) -> Path:
+    """Registra el régimen de programación vigente (día/hora de corrida e inicio
+    operativo) con su fecha, para trazar cambios de calendario (04.item4).
+    Idempotente: solo agrega una fila nueva si el régimen cambió."""
+    ruta = config.ESTADO / "cambios_programacion.csv"
+    prog = params.get("programacion") or {}
+    regimen = (f'corrida={prog.get("dia_semana_corrida", "?")} {prog.get("hora_corrida", "?")}'
+               f' · inicio_operativo={prog.get("dia_inicio_operativo", "?")}')
+    vigente = str(prog.get("vigente_desde", ""))
+    fila = {"vigente_desde": vigente, "programacion": regimen}
+    if ruta.exists():
+        df = pd.read_csv(ruta, dtype=str)
+        ya = ((df.get("vigente_desde") == vigente) & (df.get("programacion") == regimen)).any()
+        if not ya:
+            df = pd.concat([df, pd.DataFrame([fila])], ignore_index=True)
+    else:
+        df = pd.DataFrame([fila])
+    df.to_csv(ruta, index=False)
+    return ruta
+
+
 def detectar_drive(params: dict) -> Path | None:
     """Autodetecta el Google Drive montado en macOS según el patrón del yaml."""
     import glob as _glob
@@ -836,6 +867,7 @@ def generar_todo(datos: dict, params: dict, copiar_drive: bool = True) -> dict:
         "pedido": escribir_pedido_md(datos, params, destino),
         "dashboard": escribir_dashboard(datos, params, destino),
         "bitacora": actualizar_bitacora(datos, params),
+        "cambios_prog": registrar_programacion(params),
         "dir": destino,
     }
     if copiar_drive:

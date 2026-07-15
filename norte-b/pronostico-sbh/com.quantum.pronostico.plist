@@ -14,13 +14,15 @@
     <key>WorkingDirectory</key>
     <string>/Users/radamesvargasramirez/QUANTUM/norte-b/pronostico-sbh</string>
 
-    <!-- Lunes (Weekday=1) a las 07:00 -->
+    <!-- Martes (Weekday=2) a las 10:00 — movido desde lunes 07:00 el 2026-07-15
+         porque el control volumétrico entrega con 24 h de retraso (datos del
+         domingo disponibles el lunes; se cargan lunes PM y se corre martes 10:00). -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Weekday</key>
-        <integer>1</integer>
+        <integer>2</integer>
         <key>Hour</key>
-        <integer>7</integer>
+        <integer>10</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>

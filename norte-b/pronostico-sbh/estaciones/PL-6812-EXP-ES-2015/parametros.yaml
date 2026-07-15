@@ -7,6 +7,17 @@
 version: "1.0"
 estacion: "SBH"
 
+# --- Programación de la corrida ---------------------------------------------
+# Cambio 2026-07-15: se movió de LUNES 07:00 a MARTES 10:00 porque el control
+# volumétrico entrega con 24 h de retraso (los datos del domingo llegan el lunes).
+# La semana operativa pronosticada empieza el MARTES (Mar->Lun); si la corrida
+# usa datos hasta el domingo, el lunes queda como HUECO y se imputa (sin fuga).
+programacion:
+  dia_semana_corrida: "martes"       # el LaunchAgent dispara este día
+  hora_corrida: "10:00"
+  dia_inicio_operativo: "martes"     # primer día de la ventana de 7 días (Mar->Lun)
+  vigente_desde: "2026-07-15"
+
 # --- Régimen de datos (03.2) -------------------------------------------------
 # MAGNA entrena con 2025+2026. PREMIUM y DIESEL solo desde esta fecha.
 regimen_desde: "2026-01-01"

@@ -109,6 +109,37 @@ def normalizar_permiso(permiso: str) -> str:
     return permiso.strip().replace("/", "-")
 
 
+# lunes=0 ... domingo=6 (convención Python weekday)
+DIAS_SEMANA = {
+    "lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2, "jueves": 3,
+    "viernes": 4, "sabado": 5, "sábado": 5, "domingo": 6,
+}
+
+
+def fecha_inicio_operativo(fecha_origen, params: dict):
+    """Primer día de la ventana de pronóstico según la programación.
+
+    `programacion.dia_inicio_operativo` (p.ej. "martes") -> el día más próximo con
+    ese día-de-semana tal que sea > fecha_origen. Si no se configura, origen+1.
+    Ej.: origen=domingo, inicio=martes -> origen+2 (el lunes queda como HUECO,
+    se imputa; ver features.construir_frame).
+    """
+    import pandas as pd
+
+    origen = pd.Timestamp(fecha_origen)
+    prog = (params.get("programacion") or {})
+    dia = prog.get("dia_inicio_operativo")
+    wd = DIAS_SEMANA.get(str(dia).strip().lower()) if dia else None
+    if wd is None:
+        return origen + pd.Timedelta(days=1)
+    d = origen + pd.Timedelta(days=1)
+    for _ in range(7):
+        if d.weekday() == wd:
+            return d
+        d += pd.Timedelta(days=1)
+    return origen + pd.Timedelta(days=1)
+
+
 def asegurar_directorios() -> None:
     for d in (ENTRADA, ESTADO, SALIDAS, LOGS):
         if d is not None:
